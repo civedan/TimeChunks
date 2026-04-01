@@ -12,16 +12,18 @@
   .label { font-size: 11px; letter-spacing: 2px; color: #6c7a9c; text-transform: uppercase; margin-bottom: 10px; }
   .date-label { font-size: 11px; letter-spacing: 3px; color: #6c7a9c; text-transform: uppercase; }
   .wrap { max-width: 740px; margin: 0 auto; }
-  .block-btns { display: flex; gap: 8px; align-items: center; margin: 20px 0; }
+  .block-btns { display: flex; gap: 8px; align-items: center; margin: 20px 0; flex-wrap: wrap; }
   .block-btn { padding: 5px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: #1e2130; color: #8892b0; }
   .block-btn.active { background: #4f8ef7; color: #fff; }
   .grid { display: grid; grid-template-columns: 1fr 250px; gap: 20px; }
   .timeline-row { display: flex; margin-bottom: 3px; }
   .hour-label { width: 52px; font-size: 11px; color: #4a5568; padding-top: 13px; flex-shrink: 0; }
-  .slot { flex: 1; min-height: 44px; border-radius: 8px; border: 1px dashed #2a2f45; background: #161b27; position: relative; transition: background 0.1s; }
-  .slot.covered { border-color: transparent; background: transparent; }
-  .slot.drag-over { background: #1a2540; border-color: #4f8ef7; }
-  .block-item { position: absolute; inset: 0; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; cursor: grab; }
+  .slot { flex: 1; min-height: 44px; border-radius: 8px; border: 1px dashed #2a2f45; background: #161b27; position: relative; cursor: pointer; transition: background 0.1s, border-color 0.1s; }
+  .slot:hover { border-color: #4f8ef7; background: #1a2035; }
+  .slot.covered { border-color: transparent !important; background: transparent !important; cursor: default; }
+  .slot.ready { border-color: #4f8ef7; background: #1a2540; animation: pulse 1s infinite alternate; }
+  @keyframes pulse { from { border-color: #4f8ef7; } to { border-color: #4fc97a; } }
+  .block-item { position: absolute; inset: 0; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; }
   .block-title { font-size: 13px; font-weight: 600; }
   .block-meta { font-size: 11px; color: #6c7a9c; margin-top: 2px; }
   .sidebar { display: flex; flex-direction: column; gap: 14px; }
@@ -31,22 +33,27 @@
   .add-btn { background: #4f8ef7; border: none; border-radius: 8px; color: #fff; padding: 8px 14px; cursor: pointer; font-weight: 700; font-size: 16px; }
   .import-toggle { background: none; border: none; color: #4f8ef7; cursor: pointer; font-size: 13px; font-weight: 600; padding: 0; }
   select { width: 100%; background: #0f1117; border: 1px solid #2a2f45; border-radius: 8px; padding: 7px 8px; color: #e8eaf0; font-size: 12px; margin-bottom: 8px; outline: none; }
-  .import-btn { width: 100%; background: #1e2a40; border: 1px solid #4f8ef744; border-radius: 8px; padding: 8px 10px; color: #a8c0f0; font-size: 12px; cursor: pointer; text-align: left; margin-bottom: 5px; }
+  .import-btn { width: 100%; background: #1e2a40; border: 1px solid #4f8ef744; border-radius: 8px; padding: 8px 10px; color: #a8c0f0; font-size: 12px; cursor: pointer; text-align: left; margin-bottom: 5px; display: block; }
   .import-btn.added { background: #1a1f2e; border-color: #2a2f45; color: #4a5568; cursor: default; }
-  .task-item { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 8px; background: #0f1117; margin-bottom: 6px; cursor: grab; }
+  .task-item { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 8px; background: #0f1117; margin-bottom: 6px; cursor: pointer; transition: opacity 0.1s, transform 0.1s; }
+  .task-item:hover { opacity: 0.85; }
+  .task-item.selected { outline: 2px solid #4fc97a; transform: scale(1.02); }
   .task-label { flex: 1; font-size: 13px; color: #c8d0e0; }
   .remove-btn { background: none; border: none; color: #4a5568; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; }
-  .footer { margin-top: 16px; font-size: 11px; color: #2a3050; text-align: center; }
+  .hint-bar { background: #1a2a1a; border: 1px solid #4fc97a44; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #4fc97a; margin-bottom: 16px; display: none; }
+  .hint-bar.visible { display: block; }
   @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div style="margin-bottom:24px">
+  <div style="margin-bottom:20px">
     <div class="date-label" id="dateLabel"></div>
     <h1>Day Planner</h1>
     <div class="subtitle" id="subtitle">0h scheduled · 0 tasks remaining</div>
   </div>
+
+  <div id="hintBar" class="hint-bar"></div>
 
   <div class="block-btns">
     <span style="font-size:12px;color:#6c7a9c">Block size:</span>
@@ -57,7 +64,7 @@
 
   <div class="grid">
     <div>
-      <div class="label">Timeline — drag tasks here</div>
+      <div class="label">Timeline</div>
       <div id="timeline"></div>
     </div>
     <div class="sidebar">
@@ -77,11 +84,12 @@
       </div>
       <div class="card" style="flex:1">
         <div class="label">Tasks (<span id="taskCount">0</span>)</div>
+        <div style="font-size:11px;color:#4a5568;margin-bottom:8px" id="tapHint">Tap a task to select it, then tap a time slot</div>
         <div id="taskPool"></div>
       </div>
     </div>
   </div>
-  <div class="footer">Select block size · Drag tasks onto the timeline · Drag blocks to reschedule</div>
+  <div style="margin-top:16px;font-size:11px;color:#2a3050;text-align:center">Tap a task · Choose block size · Tap a time slot to place it</div>
 </div>
 
 <script>
@@ -99,35 +107,37 @@ const REMINDERS = {
 const COLORS = ["#4f8ef7","#f7834f","#4fc97a","#c94f8e","#f7c94f","#4fc9c9","#9b4ff7","#f74f4f"];
 const HOURS = Array.from({length:14},(_,i)=>i+7);
 
-let tasks = [], blocks = {}, blockSize = 1, dragData = null, colorIdx = 0;
+let tasks = [], blocks = {}, blockSize = 1, selectedTask = null, colorIdx = 0;
 
 function nextColor(){ return COLORS[(colorIdx++)%COLORS.length]; }
 function fmtHour(h){ if(h===12)return"12 PM"; return h>12?`${h-12} PM`:`${h} AM`; }
 
 function setBlockSize(s){
-  blockSize=s;
+  blockSize = s;
   [1,2,3].forEach(n=>{ document.getElementById('btn'+n).className='block-btn'+(n===s?' active':''); });
+  render();
 }
 
 function addTask(){
-  const inp=document.getElementById('taskInput');
-  const label=inp.value.trim();
-  if(!label)return;
-  tasks.push({id:Date.now(),label,color:nextColor()});
-  inp.value='';
+  const inp = document.getElementById('taskInput');
+  const label = inp.value.trim();
+  if(!label) return;
+  tasks.push({id: Date.now(), label, color: nextColor()});
+  inp.value = '';
   render();
 }
 
 function importTask(label){
-  if(tasks.find(t=>t.label===label))return;
-  tasks.push({id:Date.now()+Math.random(),label,color:nextColor()});
+  if(tasks.find(t=>t.label===label)) return;
+  tasks.push({id: Date.now()+Math.random(), label, color: nextColor()});
   render();
   renderImportList();
 }
 
 function removeTask(id){
-  tasks=tasks.filter(t=>t.id!==id);
+  tasks = tasks.filter(t=>t.id!==id);
   Object.keys(blocks).forEach(k=>{ if(blocks[k]&&blocks[k].taskId===id) delete blocks[k]; });
+  if(selectedTask && selectedTask.id===id) selectedTask = null;
   render();
 }
 
@@ -136,46 +146,52 @@ function removeBlock(key){
   render();
 }
 
+function selectTask(task){
+  selectedTask = (selectedTask && selectedTask.id===task.id) ? null : task;
+  setHint(selectedTask ? `"${selectedTask.label}" selected — now tap a time slot to place it` : '');
+  render();
+}
+
+function setHint(msg){
+  const bar = document.getElementById('hintBar');
+  bar.textContent = msg;
+  bar.className = 'hint-bar' + (msg ? ' visible' : '');
+}
+
 function occupiedHours(){
-  const s=new Set();
+  const s = new Set();
   Object.entries(blocks).forEach(([k,v])=>{
-    const [h,sz]=k.split('-').map(Number);
+    const [h,sz] = k.split('-').map(Number);
     for(let i=0;i<sz;i++) s.add(h+i);
   });
   return s;
 }
 
-function canDrop(hour){
-  const occ=occupiedHours();
+function canPlace(hour){
+  const occ = occupiedHours();
   for(let i=0;i<blockSize;i++){
-    if(occ.has(hour+i)){
-      // check if it belongs to the dragged task's own block
-      const ownKey=Object.keys(blocks).find(k=>{
-        const [h,sz]=k.split('-').map(Number);
-        return blocks[k].taskId===dragData?.id && hour+i>=h && hour+i<h+sz;
-      });
-      if(!ownKey) return false;
-    }
+    if(occ.has(hour+i)) return false;
   }
   return true;
 }
 
-function onDrop(hour){
-  if(!dragData||!canDrop(hour))return;
-  if(dragData.fromKey) delete blocks[dragData.fromKey];
-  blocks[`${hour}-${blockSize}`]={taskId:dragData.id,label:dragData.label,color:dragData.color,size:blockSize};
-  dragData=null;
+function placeTask(hour){
+  if(!selectedTask) return;
+  if(!canPlace(hour)){ setHint('⚠️ That slot is occupied — try another time'); return; }
+  blocks[`${hour}-${blockSize}`] = {taskId: selectedTask.id, label: selectedTask.label, color: selectedTask.color, size: blockSize};
+  setHint('');
+  selectedTask = null;
   render();
 }
 
 function toggleImport(){
-  const p=document.getElementById('importPanel');
-  const btn=document.querySelector('.import-toggle');
-  const open=p.style.display==='none';
-  p.style.display=open?'block':'none';
-  btn.textContent=(open?'▾':'▸')+' Import from Reminders';
+  const p = document.getElementById('importPanel');
+  const btn = document.querySelector('.import-toggle');
+  const open = p.style.display==='none';
+  p.style.display = open ? 'block' : 'none';
+  btn.textContent = (open?'▾':'▸')+' Import from Reminders';
   if(open){
-    const sel=document.getElementById('listSelect');
+    const sel = document.getElementById('listSelect');
     if(!sel.options.length){
       Object.keys(REMINDERS).forEach(l=>{ const o=document.createElement('option'); o.value=o.textContent=l; sel.appendChild(o); });
     }
@@ -184,61 +200,61 @@ function toggleImport(){
 }
 
 function renderImportList(){
-  const list=REMINDERS[document.getElementById('listSelect').value]||[];
-  const div=document.getElementById('importList');
-  div.innerHTML='';
+  const list = REMINDERS[document.getElementById('listSelect').value]||[];
+  const div = document.getElementById('importList');
+  div.innerHTML = '';
   list.forEach(r=>{
-    const added=!!tasks.find(t=>t.label===r);
-    const btn=document.createElement('button');
-    btn.className='import-btn'+(added?' added':'');
-    btn.textContent=(added?'✓ ':'+ ')+r;
-    btn.disabled=added;
-    btn.onclick=()=>importTask(r);
+    const added = !!tasks.find(t=>t.label===r);
+    const btn = document.createElement('button');
+    btn.className = 'import-btn'+(added?' added':'');
+    btn.textContent = (added?'✓ ':'+ ')+r;
+    btn.disabled = added;
+    btn.onclick = ()=>importTask(r);
     div.appendChild(btn);
   });
 }
 
 function render(){
-  const occ=occupiedHours();
-  const scheduledIds=new Set(Object.values(blocks).map(b=>b.taskId));
-  const unscheduled=tasks.filter(t=>!scheduledIds.has(t.id));
-  const totalHours=Object.values(blocks).reduce((s,b)=>s+b.size,0);
+  const occ = occupiedHours();
+  const scheduledIds = new Set(Object.values(blocks).map(b=>b.taskId));
+  const unscheduled = tasks.filter(t=>!scheduledIds.has(t.id));
+  const totalHours = Object.values(blocks).reduce((s,b)=>s+b.size,0);
 
-  document.getElementById('subtitle').textContent=`${totalHours}h scheduled · ${unscheduled.length} task${unscheduled.length!==1?'s':''} remaining`;
-  document.getElementById('taskCount').textContent=unscheduled.length;
+  document.getElementById('subtitle').textContent = `${totalHours}h scheduled · ${unscheduled.length} task${unscheduled.length!==1?'s':''} remaining`;
+  document.getElementById('taskCount').textContent = unscheduled.length;
 
   // Timeline
-  const tl=document.getElementById('timeline');
-  tl.innerHTML='';
+  const tl = document.getElementById('timeline');
+  tl.innerHTML = '';
   HOURS.forEach(hour=>{
-    const blockEntry=Object.entries(blocks).find(([k])=>Number(k.split('-')[0])===hour);
-    const isCovered=occ.has(hour)&&!blockEntry;
+    const blockEntry = Object.entries(blocks).find(([k])=>Number(k.split('-')[0])===hour);
+    const isCovered = occ.has(hour) && !blockEntry;
+    const isReady = selectedTask && !isCovered && !blockEntry && canPlace(hour);
 
-    const row=document.createElement('div');
-    row.className='timeline-row';
+    const row = document.createElement('div');
+    row.className = 'timeline-row';
 
-    const lbl=document.createElement('div');
-    lbl.className='hour-label';
-    lbl.textContent=fmtHour(hour);
+    const lbl = document.createElement('div');
+    lbl.className = 'hour-label';
+    lbl.textContent = fmtHour(hour);
 
-    const slot=document.createElement('div');
-    slot.className='slot'+(isCovered?' covered':'');
-    slot.addEventListener('dragover',e=>{ if(!isCovered){e.preventDefault();slot.classList.add('drag-over');}});
-    slot.addEventListener('dragleave',()=>slot.classList.remove('drag-over'));
-    slot.addEventListener('drop',()=>{ slot.classList.remove('drag-over'); onDrop(hour); });
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (isCovered?' covered':'') + (isReady?' ready':'');
+
+    if(!isCovered && !blockEntry){
+      slot.onclick = ()=>placeTask(hour);
+    }
 
     if(blockEntry){
-      const [key,val]=blockEntry;
-      const item=document.createElement('div');
-      item.className='block-item';
-      item.draggable=true;
-      item.style.background=val.color+'20';
-      item.style.borderLeft=`3px solid ${val.color}`;
-      item.innerHTML=`<div><div class="block-title">${val.label}</div><div class="block-meta">${val.size}h · ${fmtHour(hour)} – ${fmtHour(hour+val.size)}</div></div>`;
-      item.addEventListener('dragstart',()=>{ dragData={id:val.taskId,label:val.label,color:val.color,fromKey:key}; });
-      const x=document.createElement('button');
-      x.className='remove-btn'; x.textContent='×';
-      x.onclick=()=>removeBlock(key);
+      const [key,val] = blockEntry;
+      const item = document.createElement('div');
+      item.className = 'block-item';
+      item.style.background = val.color+'20';
+      item.style.borderLeft = `3px solid ${val.color}`;
+      item.innerHTML = `<div><div class="block-title">${val.label}</div><div class="block-meta">${val.size}h · ${fmtHour(hour)} – ${fmtHour(hour+val.size)}</div></div>`;
+      const x = document.createElement('button');
+      x.className = 'remove-btn'; x.textContent = '×';
+      x.onclick = (e)=>{ e.stopPropagation(); removeBlock(key); };
       item.appendChild(x);
       slot.appendChild(item);
     }
@@ -249,34 +265,31 @@ function render(){
   });
 
   // Task pool
-  const pool=document.getElementById('taskPool');
-  pool.innerHTML='';
-  if(unscheduled.length===0&&tasks.length>0){
-    pool.innerHTML='<div style="font-size:12px;color:#4fc97a;font-style:italic">🎉 All tasks scheduled!</div>';
-  } else if(tasks.length===0){
-    pool.innerHTML='<div style="font-size:12px;color:#4a5568;font-style:italic">Add or import tasks above</div>';
+  const pool = document.getElementById('taskPool');
+  pool.innerHTML = '';
+  if(unscheduled.length===0 && tasks.length>0){
+    pool.innerHTML = '<div style="font-size:12px;color:#4fc97a;font-style:italic">🎉 All tasks scheduled!</div>';
+    document.getElementById('tapHint').style.display = 'none';
+  } else {
+    document.getElementById('tapHint').style.display = unscheduled.length ? 'block' : 'none';
   }
   unscheduled.forEach(task=>{
-    const item=document.createElement('div');
-    item.className='task-item';
-    item.draggable=true;
-    item.style.borderLeft=`3px solid ${task.color}`;
-    item.style.border=`1px solid ${task.color}33`;
-    item.style.borderLeft=`3px solid ${task.color}`;
-    item.innerHTML=`<div class="task-label">${task.label}</div>`;
-    item.addEventListener('dragstart',()=>{ dragData={id:task.id,label:task.label,color:task.color,fromKey:null}; });
-    const x=document.createElement('button');
-    x.className='remove-btn'; x.textContent='×';
-    x.onclick=()=>removeTask(task.id);
+    const item = document.createElement('div');
+    item.className = 'task-item' + (selectedTask&&selectedTask.id===task.id?' selected':'');
+    item.style.borderLeft = `3px solid ${task.color}`;
+    item.style.border = `1px solid ${task.color}33`;
+    item.style.borderLeft = `3px solid ${task.color}`;
+    item.innerHTML = `<div class="task-label">${task.label}</div>`;
+    item.onclick = ()=>selectTask(task);
+    const x = document.createElement('button');
+    x.className = 'remove-btn'; x.textContent = '×';
+    x.onclick = (e)=>{ e.stopPropagation(); removeTask(task.id); };
     item.appendChild(x);
     pool.appendChild(item);
   });
 }
 
-// Date label
-const d=new Date();
-document.getElementById('dateLabel').textContent=d.toLocaleDateString('en-CA',{weekday:'long',month:'long',day:'numeric'});
-
+document.getElementById('dateLabel').textContent = new Date().toLocaleDateString('en-CA',{weekday:'long',month:'long',day:'numeric'});
 render();
 </script>
 </body>
